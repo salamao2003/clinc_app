@@ -4,7 +4,8 @@ import '../screens/Appointments_screen.dart';
 import '../screens/prescription_screen.dart';
 import '../screens/billing_screen.dart';
 import '../screens/Reports_screen.dart';
-import '../screens/settings_screen.dart';
+
+import '../screens/profile_screen.dart';
 // أضف باقي الصفحات هنا
 import '../screens/login_screen.dart';
 import '../screens/animated_page_transition.dart'; 
@@ -116,12 +117,12 @@ class AppSidebar extends StatelessWidget {
                navigateWithAnimation(parentContext, ReportsScreen());
             },
           ),
-          _buildDrawerItem(
-            icon: Icons.settings,
-            title: isArabic ? 'الإعدادات' : 'Settings',
-            selected: selectedPage == 'settings',
+           _buildDrawerItem(
+            icon: Icons.account_circle,
+            title: isArabic ? ' الصفحة الشخصية' : 'Profile',
+            selected: selectedPage == 'profile',
             onTap: () {
-              navigateWithAnimation(parentContext, const SettingsScreen());
+              navigateWithAnimation(parentContext, const ProfileScreen());
             },
           ),
           const Divider(),
