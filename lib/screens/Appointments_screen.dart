@@ -808,7 +808,6 @@ Future<void> _showDeleteConfirmation(String appointmentId) async {
                     DropdownButtonFormField<String>(
                       value: visitType.isNotEmpty ? visitType : null,
                       items: const [
-                        DropdownMenuItem(value: 'checkup', child: Text('Checkup')),
                         DropdownMenuItem(value: 'follow up', child: Text('Follow Up')),
                         DropdownMenuItem(value: 'first visit', child: Text('First Visit')),
                       ],

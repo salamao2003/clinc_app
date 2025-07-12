@@ -315,7 +315,7 @@ class _BillingScreenState extends State<BillingScreen> {
                               _buildFilterDropdown(
                                 title: _isArabic ? 'حالة الدفع' : 'Payment Status',
                                 value: _selectedPaymentStatus,
-                                items: ['Paid', 'Unpaid', 'Partially Paid'],
+                                items: ['Paid', 'Unpaid'],
                                 onChanged: (value) {
                                   setState(() {
                                     _selectedPaymentStatus = value;
@@ -327,7 +327,6 @@ class _BillingScreenState extends State<BillingScreen> {
                                     switch (status) {
                                       case 'Paid': return 'مدفوع';
                                       case 'Unpaid': return 'غير مدفوع';
-                                      case 'Partially Paid': return 'مدفوع جزئياً';
                                       default: return status;
                                     }
                                   }
@@ -663,7 +662,7 @@ class _BillingScreenState extends State<BillingScreen> {
     switch (status) {
       case 'Paid': return Colors.green;
       case 'Unpaid': return Colors.red;
-      case 'Partially Paid': return Colors.orange;
+     
       default: return Colors.grey;
     }
   }
@@ -672,8 +671,7 @@ class _BillingScreenState extends State<BillingScreen> {
     switch (status) {
       case 'Paid': return 'مدفوع';
       case 'Unpaid': return 'غير مدفوع';
-      case 'Partially Paid': return 'مدفوع جزئياً';
-      default: return status;
+            default: return status;
     }
   }
 
@@ -1209,7 +1207,7 @@ class _BillingScreenState extends State<BillingScreen> {
                         items: [
                           DropdownMenuItem(value: 'Paid', child: Text(_isArabic ? 'مدفوع' : 'Paid')),
                           DropdownMenuItem(value: 'Unpaid', child: Text(_isArabic ? 'غير مدفوع' : 'Unpaid')),
-                          DropdownMenuItem(value: 'Partially Paid', child: Text(_isArabic ? 'مدفوع جزئياً' : 'Partially Paid')),
+                         
                         ],
                         onChanged: (value) {
                           setDialogState(() {

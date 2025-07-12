@@ -129,10 +129,21 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ],
                         ),
-                        child: const Icon(
-                          Icons.local_hospital,
-                          size: 100,
-                          color: primaryBlue,
+                        child: ClipOval(
+                          child: Image.asset(
+                            'assets/Logo.png',
+                            width: 180,
+                            height: 180,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              // في حالة عدم وجود الصورة، أظهر الأيقونة الافتراضية
+                              return const Icon(
+                                Icons.local_hospital,
+                                size: 100,
+                                color: primaryBlue,
+                              );
+                            },
+                          ),
                         ),
                       ),
                       const SizedBox(height: 40),
@@ -330,28 +341,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 const SizedBox(height: 20),
 
-                                // Forgot password
-                                Align(
-                                  alignment: _isArabic ? Alignment.centerLeft : Alignment.centerRight,
-                                  child: TextButton(
-                                    onPressed: () {
-                                      // Handle forgot password
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text(_isArabic ? 'سيتم إضافة هذه الميزة قريباً' : 'Feature coming soon'),
-                                        ),
-                                      );
-                                    },
-                                    child: Text(
-                                      _isArabic ? 'نسيت كلمة المرور؟' : 'Forgot Password?',
-                                      style: const TextStyle(
-                                        color: primaryBlue,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 15,
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                                
+                                
                                 const SizedBox(height: 30),
 
                                 // Login button

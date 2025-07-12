@@ -766,8 +766,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             // Edit and Logout buttons when not editing
             ElevatedButton.icon(
               onPressed: _toggleEditing,
-              icon: const Icon(Icons.edit),
-              label: Text(_isArabic ? 'تعديل البيانات' : 'Edit Profile'),
+              icon: const Icon(Icons.edit, color: Colors.white),
+              label: Text(_isArabic ? 'تعديل البيانات' : 'Edit Profile',style: TextStyle(color: Colors.white),),
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryBlue,
                 padding: const EdgeInsets.symmetric(vertical: 16),

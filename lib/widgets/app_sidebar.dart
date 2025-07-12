@@ -58,7 +58,18 @@ class AppSidebar extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.local_hospital, color: Colors.white, size: 40),
+                ClipOval(
+                  child: Image.asset(
+                    'assets/Logo.png',
+                    width: 60,
+                    height: 60,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      // في حالة عدم وجود الصورة، أظهر الأيقونة الافتراضية
+                      return const Icon(Icons.local_hospital, color: Colors.white, size: 40);
+                    },
+                  ),
+                ),
                 const SizedBox(height: 12),
                 Text(
                   isArabic ? 'نظام العيادة' : 'Insta Clinic',
