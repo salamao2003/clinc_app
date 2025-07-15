@@ -5,12 +5,21 @@ import 'package:provider/provider.dart';
 import 'config/supabase_config.dart';
 import 'screens/splash_screen.dart';
 import 'providers/language_provider.dart';
+import 'database/local_database.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // تهيئة Supabase
+  // تهيئة Supabase (مؤقت)
   await SupabaseConfig.initialize();
+  
+  // حذف قاعدة البيانات لحل مشكلة الجدول (مؤقتاً)
+  try {
+    await LocalDatabase.deleteDatabase();
+    print('✅ تم حذف قاعدة البيانات القديمة');
+  } catch (e) {
+    print('🔄 قاعدة البيانات غير موجودة أو تم حذفها بالفعل');
+  }
   
   runApp(const ClinicManagementApp());
 }

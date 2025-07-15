@@ -1,11 +1,8 @@
 // screens/patients_screen.dart
 import 'package:flutter/material.dart';
-import '../backend/patient_service.dart';
-import '../backend/patient_model.dart';
-import '../backend/auth_service.dart';
-import 'animated_page_transition.dart';
+import '../backend_local/patient_service_local.dart';
+import '../models/patient_model.dart';
 import 'login_screen.dart';
-import 'Appointments_screen.dart';
 import '../widgets/app_sidebar.dart';
 class PatientsScreen extends StatefulWidget {
   const PatientsScreen({Key? key}) : super(key: key);
@@ -15,8 +12,6 @@ class PatientsScreen extends StatefulWidget {
 }
 
 class _PatientsScreenState extends State<PatientsScreen> {
-  final _patientService = PatientService();
-  final _authService = AuthService();
   final _searchController = TextEditingController();
   
   List<Patient> _patients = [];
@@ -46,10 +41,10 @@ class _PatientsScreenState extends State<PatientsScreen> {
   Future<void> _fetchPatients() async {
     setState(() => _isLoading = true);
     try {
-      final result = await _patientService.loadPatients();
+      final patients = await PatientServiceLocal.getAllPatients();
       setState(() {
-        _patients = result['patients']!;
-        _filteredPatients = result['filteredPatients']!;
+        _patients = patients;
+        _filteredPatients = patients;
         _isLoading = false;
       });
     } catch (e) {
@@ -68,21 +63,60 @@ class _PatientsScreenState extends State<PatientsScreen> {
   void _searchPatients(String query) {
     setState(() {
       _searchQuery = query;
-      _filteredPatients = _patientService.searchPatientsLocal(_patients, query);
+      if (query.isEmpty) {
+        _filteredPatients = _patients;
+      } else {
+        _filteredPatients = _patients.where((patient) {
+          return patient.fullName.toLowerCase().contains(query.toLowerCase()) ||
+                 patient.phoneNumber.contains(query) ||
+                 patient.email.toLowerCase().contains(query.toLowerCase());
+        }).toList();
+      }
     });
   }
 
   Future<void> _deletePatient(Patient patient) async {
-    final success = await _patientService.deletePatientWithConfirm(context, patient, _isArabic);
-    if (success) {
-      _fetchPatients();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_isArabic ? 'تم حذف المريض بنجاح' : 'Patient deleted successfully'),
-            backgroundColor: Colors.green,
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(_isArabic ? 'تأكيد الحذف' : 'Confirm Delete'),
+        content: Text(_isArabic 
+          ? 'هل أنت متأكد من حذف المريض ${patient.fullName}؟'
+          : 'Are you sure you want to delete patient ${patient.fullName}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(_isArabic ? 'إلغاء' : 'Cancel'),
           ),
-        );
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(_isArabic ? 'حذف' : 'Delete', style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final result = await PatientServiceLocal.deletePatient(patient.id);
+      if (result['success']) {
+        _fetchPatients();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_isArabic ? 'تم حذف المريض بنجاح' : 'Patient deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? (_isArabic ? 'فشل في حذف المريض' : 'Failed to delete patient')),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     }
   }
@@ -94,9 +128,29 @@ class _PatientsScreenState extends State<PatientsScreen> {
   }
 
   void _logout() async {
-    final success = await _patientService.logoutWithConfirm(context, _authService, _isArabic);
-    if (success && mounted) {
-      navigateWithAnimation(context, const LoginScreen());
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(_isArabic ? 'تسجيل الخروج' : 'Logout'),
+        content: Text(_isArabic ? 'هل تريد تسجيل الخروج؟' : 'Do you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(_isArabic ? 'إلغاء' : 'Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(_isArabic ? 'تسجيل الخروج' : 'Logout'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
     }
   }
 
@@ -146,8 +200,8 @@ void _showPatientDetails(Patient patient) {
                 ),
                 const SizedBox(height: 24),
                 _buildDetailRow(_isArabic ? 'الجنس' : 'Gender', _isArabic
-                    ? (patient.gender == 'Male' ? 'ذكر' : 'أنثى')
-                    : patient.gender),
+                    ? (patient.gender.toLowerCase() == 'male' ? 'ذكر' : 'أنثى')
+                    : (patient.gender.toLowerCase() == 'male' ? 'Male' : 'Female')),
                 _buildDetailRow(_isArabic ? 'رقم الهاتف' : 'Phone Number', patient.phoneNumber),
                 _buildDetailRow(_isArabic ? 'البريد الإلكتروني' : 'Email', patient.email),
                 _buildDetailRow(_isArabic ? 'تاريخ الميلاد' : 'Date of Birth',
@@ -198,7 +252,7 @@ Widget _buildDetailRow(String label, String value) {
   Future<void> _showAddPatientDialog() async {
     final _formKey = GlobalKey<FormState>();
     String fullName = '';
-    String gender = 'Male';
+    String gender = 'male'; // تغيير القيمة الافتراضية
     String phoneNumber = '';
     String email = '';
     DateTime? dateOfBirth;
@@ -267,10 +321,10 @@ Widget _buildDetailRow(String label, String value) {
                     DropdownButtonFormField<String>(
                       value: gender,
                       items: [
-                        DropdownMenuItem(value: 'Male', child: Text(_isArabic ? 'ذكر' : 'Male')),
-                        DropdownMenuItem(value: 'Female', child: Text(_isArabic ? 'أنثى' : 'Female')),
+                        DropdownMenuItem(value: 'male', child: Text(_isArabic ? 'ذكر' : 'Male')),
+                        DropdownMenuItem(value: 'female', child: Text(_isArabic ? 'أنثى' : 'Female')),
                       ],
-                      onChanged: (v) => gender = v ?? 'Male',
+                      onChanged: (v) => gender = v ?? 'male',
                       decoration: InputDecoration(
                         labelText: _isArabic ? 'الجنس' : 'Gender',
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -279,9 +333,10 @@ Widget _buildDetailRow(String label, String value) {
                     const SizedBox(height: 16),
                     TextFormField(
                       decoration: InputDecoration(
-                        labelText: _isArabic ? 'رقم الهاتف' : 'Phone Number',
+                        labelText: _isArabic ? 'رقم الهاتف *' : 'Phone Number *',
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),
+                      validator: (v) => v == null || v.isEmpty ? (_isArabic ? 'رقم الهاتف مطلوب' : 'Phone number is required') : null,
                       onChanged: (v) => phoneNumber = v,
                     ),
                     const SizedBox(height: 16),
@@ -359,9 +414,28 @@ Widget _buildDetailRow(String label, String value) {
                             padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
                           ),
                           onPressed: () async {
-                            if (_formKey.currentState!.validate() && dateOfBirth != null) {
+                            if (_formKey.currentState!.validate()) {
+                              if (dateOfBirth == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(_isArabic ? 'يرجى اختيار تاريخ الميلاد' : 'Please select date of birth'),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                                return;
+                              }
+                              
+                              if (phoneNumber.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(_isArabic ? 'رقم الهاتف مطلوب' : 'Phone number is required'),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                                return;
+                              }
                               final newPatient = Patient(
-                                id: '',
+                                id: '', // سيتم تعيين ID تلقائياً
                                 fullName: fullName,
                                 gender: gender,
                                 phoneNumber: phoneNumber,
@@ -369,25 +443,48 @@ Widget _buildDetailRow(String label, String value) {
                                 dateOfBirth: dateOfBirth!,
                                 address: address,
                                 emergencyContact: emergencyContact,
+                                emergencyPhone: '', // حقل فارغ افتراضياً
                                 medicalHistory: medicalHistory,
+                                allergies: '', // حقل فارغ افتراضياً
+                                bloodType: '', // حقل فارغ افتراضياً
+                                notes: '', // حقل فارغ افتراضياً
                                 isActive: true,
                                 createdAt: DateTime.now(),
                                 updatedAt: DateTime.now(),
                                 lastVisitDate: null,
+                                createdBy: 'main_user',
                               );
                               try {
-                                await _patientService.addPatient(newPatient);
+                                final result = await PatientServiceLocal.addPatient(newPatient);
                                 if (mounted) {
                                   Navigator.pop(context);
-                                  _fetchPatients();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(_isArabic ? 'تمت إضافة المريض بنجاح' : 'Patient added successfully')),
-                                  );
+                                  if (result['success']) {
+                                    _fetchPatients();
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(_isArabic ? 'تمت إضافة المريض بنجاح' : 'Patient added successfully'),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(result['message'] ?? (_isArabic ? 'فشل في إضافة المريض' : 'Failed to add patient')),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
                                 }
                               } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(_isArabic ? 'فشل في إضافة المريض' : 'Failed to add patient')),
-                                );
+                                if (mounted) {
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(_isArabic ? 'فشل في إضافة المريض: ${e.toString()}' : 'Failed to add patient: ${e.toString()}'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
                               }
                             }
                           },
@@ -412,7 +509,7 @@ Widget _buildDetailRow(String label, String value) {
 Future<void> _showEditPatientDialog(Patient patient) async {
   final _formKey = GlobalKey<FormState>();
   String fullName = patient.fullName;
-  String gender = patient.gender;
+  String gender = patient.gender.toLowerCase(); // تحويل إلى أحرف صغيرة للتوافق
   String phoneNumber = patient.phoneNumber;
   String email = patient.email;
   DateTime? dateOfBirth = patient.dateOfBirth;
@@ -483,10 +580,10 @@ Future<void> _showEditPatientDialog(Patient patient) async {
                   DropdownButtonFormField<String>(
                     value: gender,
                     items: [
-                      DropdownMenuItem(value: 'Male', child: Text(_isArabic ? 'ذكر' : 'Male')),
-                      DropdownMenuItem(value: 'Female', child: Text(_isArabic ? 'أنثى' : 'Female')),
+                      DropdownMenuItem(value: 'male', child: Text(_isArabic ? 'ذكر' : 'Male')),
+                      DropdownMenuItem(value: 'female', child: Text(_isArabic ? 'أنثى' : 'Female')),
                     ],
-                    onChanged: (v) => gender = v ?? 'Male',
+                    onChanged: (v) => gender = v ?? 'male',
                     decoration: InputDecoration(
                       labelText: _isArabic ? 'الجنس' : 'Gender',
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -496,9 +593,10 @@ Future<void> _showEditPatientDialog(Patient patient) async {
                   TextFormField(
                     initialValue: phoneNumber,
                     decoration: InputDecoration(
-                      labelText: _isArabic ? 'رقم الهاتف' : 'Phone Number',
+                      labelText: _isArabic ? 'رقم الهاتف *' : 'Phone Number *',
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
+                    validator: (v) => v == null || v.isEmpty ? (_isArabic ? 'رقم الهاتف مطلوب' : 'Phone number is required') : null,
                     onChanged: (v) => phoneNumber = v,
                   ),
                   const SizedBox(height: 16),
@@ -597,18 +695,36 @@ Future<void> _showEditPatientDialog(Patient patient) async {
                               lastVisitDate: patient.lastVisitDate,
                             );
                             try {
-                              await _patientService.updatePatient(updatedPatient);
+                              final result = await PatientServiceLocal.updatePatient(updatedPatient);
                               if (mounted) {
                                 Navigator.pop(context);
-                                _fetchPatients();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(_isArabic ? 'تم تحديث بيانات المريض' : 'Patient updated successfully')),
-                                );
+                                if (result['success']) {
+                                  _fetchPatients();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(_isArabic ? 'تم تحديث بيانات المريض' : 'Patient updated successfully'),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(result['message'] ?? (_isArabic ? 'فشل في تحديث بيانات المريض' : 'Failed to update patient')),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
                               }
                             } catch (e) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(_isArabic ? 'فشل في تحديث بيانات المريض' : 'Failed to update patient')),
-                              );
+                              if (mounted) {
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(_isArabic ? 'فشل في تحديث بيانات المريض: ${e.toString()}' : 'Failed to update patient: ${e.toString()}'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
                             }
                           }
                         },

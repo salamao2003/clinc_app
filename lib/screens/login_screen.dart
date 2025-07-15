@@ -1,7 +1,7 @@
 // screens/login_screen.dart
 import 'package:flutter/material.dart';
-import '../backend/auth_service.dart';
-import 'signup_screen.dart';
+import '../backend_local/auth_service_local.dart';
+import 'setup_screen.dart';
 import 'package:clinc_app/screens/animated_page_transition.dart';
 import 'patients_screen.dart'; // استيراد شاشة المرضى
 
@@ -21,7 +21,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final AuthService _authService = AuthService();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -40,12 +39,13 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final success = await _authService.login(
-        _emailController.text.trim(),
-        _passwordController.text,
+      final result = await AuthServiceLocal.login(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        deviceInfo: 'Desktop App',
       );
 
-      if (success) {
+      if (result['success']) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -60,7 +60,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(_isArabic ? 'خطأ في البريد الإلكتروني أو كلمة المرور' : 'Invalid email or password'),
+              content: Text(result['message'] ?? (_isArabic ? 'خطأ في تسجيل الدخول' : 'Login failed')),
               backgroundColor: Colors.red,
             ),
           );
@@ -401,7 +401,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   height: 56,
                                   child: OutlinedButton(
                                     onPressed: () {
-                                     navigateWithAnimation(context, const SignUpScreen());
+                                     navigateWithAnimation(context, const SetupScreen());
                                     },
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: primaryBlue,
@@ -411,7 +411,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       ),
                                     ),
                                     child: Text(
-                                      _isArabic ? 'إنشاء حساب جديد' : 'Create New Account',
+                                      _isArabic ? 'إعداد نظام جديد' : 'Setup New System',
                                       style: const TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.w600,

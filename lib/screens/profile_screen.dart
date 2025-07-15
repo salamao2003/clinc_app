@@ -1,8 +1,7 @@
 // screens/profile_screen.dart
 import 'package:flutter/material.dart';
-import '../backend/profile_logic.dart';
-import '../models/profile_model.dart';
-import '../backend/auth_service.dart';
+import '../backend_local/profile_logic_local.dart';
+import '../backend_local/auth_service_local.dart';
 import '../widgets/app_sidebar.dart';
 import 'animated_page_transition.dart';
 import 'login_screen.dart';
@@ -15,16 +14,13 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final _profileService = ProfileService();
-  final _authService = AuthService();
   final _formKey = GlobalKey<FormState>();
   
   // Controllers for editing
   final _fullNameController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _roleController = TextEditingController();
   
-  ProfileModel? _profile;
+  Map<String, dynamic>? _profile;
   bool _isLoading = true;
   bool _isEditing = false;
   bool _isArabic = false;
@@ -45,24 +41,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void dispose() {
     _fullNameController.dispose();
     _phoneController.dispose();
-    _roleController.dispose();
     super.dispose();
   }
 
   Future<void> _loadProfile() async {
     setState(() => _isLoading = true);
     try {
-      final profile = await _profileService.getCurrentUserProfile();
-      setState(() {
-        _profile = profile;
-        _isLoading = false;
-        // Fill controllers with current data
-        if (profile != null) {
-          _fullNameController.text = profile.fullName;
-          _phoneController.text = profile.phone;
-          _roleController.text = profile.role;
+      final profileResult = await ProfileLogicLocal.getDoctorProfile();
+      if (profileResult['success']) {
+        final profile = profileResult['profile'];
+        setState(() {
+          _profile = profile;
+          _isLoading = false;
+          // Fill controllers with current data
+          if (profile != null) {
+            _fullNameController.text = profile['full_name'] ?? '';
+            _phoneController.text = profile['phone'] ?? '';
+          }
+        });
+      } else {
+        setState(() => _isLoading = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(profileResult['message'] ?? (_isArabic ? 'خطأ في تحميل البيانات' : 'Error loading data')),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
-      });
+      }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
@@ -81,25 +88,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final updatedProfile = await _profileService.updateUserProfile(
+      final updateResult = await ProfileLogicLocal.updateDoctorProfile(
         fullName: _fullNameController.text.trim(),
         phone: _phoneController.text.trim(),
-        role: _roleController.text.trim(),
       );
       
-      setState(() {
-        _profile = updatedProfile;
-        _isEditing = false;
-        _isLoading = false;
-      });
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_isArabic ? 'تم تحديث البيانات بنجاح' : 'Profile updated successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
+      if (updateResult['success']) {
+        // Reload profile data
+        await _loadProfile();
+        setState(() {
+          _isEditing = false;
+          _isLoading = false;
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_isArabic ? 'تم تحديث البيانات بنجاح' : 'Profile updated successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        setState(() => _isLoading = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(updateResult['message'] ?? (_isArabic ? 'فشل في تحديث البيانات' : 'Failed to update profile')),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       setState(() => _isLoading = false);
@@ -125,169 +144,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _isEditing = !_isEditing;
       if (!_isEditing && _profile != null) {
         // Reset controllers to original values if cancelled
-        _fullNameController.text = _profile!.fullName;
-        _phoneController.text = _profile!.phone;
-        _roleController.text = _profile!.role;
+        _fullNameController.text = _profile!['full_name'] ?? '';
+        _phoneController.text = _profile!['phone'] ?? '';
       }
     });
-  }
-
-  void _changePassword() async {
-    final _newPasswordController = TextEditingController();
-    final _confirmPasswordController = TextEditingController();
-    final _passwordFormKey = GlobalKey<FormState>();
-    bool _isPasswordLoading = false;
-    bool _obscureNewPassword = true;
-    bool _obscureConfirmPassword = true;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text(
-            _isArabic ? 'تغيير كلمة المرور' : 'Change Password',
-            style: const TextStyle(color: darkBlue),
-          ),
-          content: SizedBox(
-            width: 400,
-            child: Form(
-              key: _passwordFormKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Info message
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.blue, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _isArabic 
-                                ? 'سيتم تغيير كلمة المرور مباشرة. تأكد من حفظ كلمة المرور الجديدة.'
-                                : 'Your password will be changed immediately. Make sure to save your new password.',
-                            style: TextStyle(color: Colors.blue[700], fontSize: 12),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // New Password Field
-                  TextFormField(
-                    controller: _newPasswordController,
-                    obscureText: _obscureNewPassword,
-                    decoration: InputDecoration(
-                      labelText: _isArabic ? 'كلمة المرور الجديدة' : 'New Password',
-                      prefixIcon: const Icon(Icons.lock),
-                      suffixIcon: IconButton(
-                        icon: Icon(_obscureNewPassword ? Icons.visibility : Icons.visibility_off),
-                        onPressed: () => setDialogState(() => _obscureNewPassword = !_obscureNewPassword),
-                      ),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return _isArabic ? 'كلمة المرور الجديدة مطلوبة' : 'New password is required';
-                      }
-                      if (!_authService.isValidPassword(value)) {
-                        return _isArabic 
-                            ? 'كلمة المرور يجب أن تحتوي على 8 أحرف على الأقل مع أرقام وحروف كبيرة وصغيرة'
-                            : 'Password must be at least 8 characters with numbers, uppercase and lowercase letters';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Confirm Password Field
-                  TextFormField(
-                    controller: _confirmPasswordController,
-                    obscureText: _obscureConfirmPassword,
-                    decoration: InputDecoration(
-                      labelText: _isArabic ? 'تأكيد كلمة المرور' : 'Confirm Password',
-                      prefixIcon: const Icon(Icons.lock_reset),
-                      suffixIcon: IconButton(
-                        icon: Icon(_obscureConfirmPassword ? Icons.visibility : Icons.visibility_off),
-                        onPressed: () => setDialogState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
-                      ),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return _isArabic ? 'تأكيد كلمة المرور مطلوب' : 'Password confirmation is required';
-                      }
-                      if (value != _newPasswordController.text) {
-                        return _isArabic ? 'كلمة المرور غير متطابقة' : 'Passwords do not match';
-                      }
-                      return null;
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: _isPasswordLoading ? null : () => Navigator.pop(context),
-              child: Text(_isArabic ? 'إلغاء' : 'Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: _isPasswordLoading ? null : () async {
-                if (_passwordFormKey.currentState!.validate()) {
-                  setDialogState(() => _isPasswordLoading = true);
-                  
-                  try {
-                    // Note: In Supabase, we cannot verify the current password directly
-                    // The user needs to re-authenticate if this is a sensitive operation
-                    // For now, we'll trust the user and proceed with password change
-                    
-                    // Change password
-                    await _authService.changePassword(newPassword: _newPasswordController.text);
-                    
-                    Navigator.pop(context);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(_isArabic ? 'تم تغيير كلمة المرور بنجاح' : 'Password changed successfully'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    setDialogState(() => _isPasswordLoading = false);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(_isArabic ? 'فشل في تغيير كلمة المرور: ${e.toString()}' : 'Failed to change password: ${e.toString()}'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: primaryBlue),
-              child: _isPasswordLoading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                    )
-                  : Text(_isArabic ? 'تغيير' : 'Change'),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   void _logout() async {
@@ -304,7 +164,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              await _authService.logout();
+              // تسجيل الخروج باستخدام الخدمة المحلية
+              await AuthServiceLocal.logout('current_session_token'); // سيتم تطوير إدارة الجلسات لاحقاً
               if (mounted) {
                 navigateWithAnimation(context, const LoginScreen());
               }
@@ -473,8 +334,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             backgroundColor: primaryBlue.withOpacity(0.1),
             radius: 50,
             child: Text(
-              _profile!.fullName.isNotEmpty 
-                  ? _profile!.fullName.substring(0, 1).toUpperCase()
+              (_profile!['full_name'] ?? '').isNotEmpty 
+                  ? (_profile!['full_name'] ?? '').substring(0, 1).toUpperCase()
                   : '?',
               style: const TextStyle(
                 color: primaryBlue,
@@ -487,7 +348,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           
           // Name and Role
           Text(
-            _profile!.fullName,
+            _profile!['full_name'] ?? 'غير محدد',
             style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -502,7 +363,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              _getRoleDisplayName(_profile!.role),
+              _getRoleDisplayName(_profile!['role'] ?? 'doctor'),
               style: const TextStyle(
                 color: primaryBlue,
                 fontWeight: FontWeight.w600,
@@ -583,27 +444,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 return null;
               },
             ),
-            const SizedBox(height: 16),
-            
-            // Role Field
-            _buildFormField(
-              controller: _roleController,
-              label: _isArabic ? 'المنصب' : 'Role',
-              icon: Icons.work_outline,
-              enabled: _isEditing,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return _isArabic ? 'المنصب مطلوب' : 'Role is required';
-                }
-                return null;
-              },
-            ),
             const SizedBox(height: 24),
             
             // Email (Read Only)
             _buildInfoRow(
               _isArabic ? 'البريد الإلكتروني' : 'Email',
-              _authService.currentUserEmail ?? '',
+              _profile!['email'] ?? '',
               Icons.email,
             ),
             const SizedBox(height: 16),
@@ -611,7 +457,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             // Created Date
             _buildInfoRow(
               _isArabic ? 'تاريخ الإنشاء' : 'Created',
-              _formatDate(_profile!.createdAt),
+              _formatDate(_profile!['created_at']),
               Icons.calendar_today,
             ),
             const SizedBox(height: 16),
@@ -619,7 +465,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             // Last Updated
             _buildInfoRow(
               _isArabic ? 'آخر تحديث' : 'Last Updated',
-              _formatDate(_profile!.updatedAt),
+              _formatDate(_profile!['updated_at']),
               Icons.update,
             ),
           ],
@@ -767,23 +613,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ElevatedButton.icon(
               onPressed: _toggleEditing,
               icon: const Icon(Icons.edit, color: Colors.white),
-              label: Text(_isArabic ? 'تعديل البيانات' : 'Edit Profile',style: TextStyle(color: Colors.white),),
+              label: Text(_isArabic ? 'تعديل البيانات' : 'Edit Profile', style: const TextStyle(color: Colors.white)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryBlue,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: _changePassword,
-              icon: const Icon(Icons.lock_reset),
-              label: Text(_isArabic ? 'تغيير كلمة المرور' : 'Change Password'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: primaryBlue,
-                side: const BorderSide(color: primaryBlue),
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -828,7 +660,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return role.toUpperCase();
   }
 
-  String _formatDate(DateTime date) {
-    return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+  String _formatDate(String? dateString) {
+    if (dateString == null || dateString.isEmpty) return 'غير محدد';
+    
+    try {
+      final date = DateTime.parse(dateString);
+      return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+    } catch (e) {
+      return dateString; // إرجاع النص الأصلي إذا فشل التحويل
+    }
   }
 }

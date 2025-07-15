@@ -43,6 +43,20 @@ dependencies:
   image_picker: ^1.0.7
   image: ^4.1.7
   http: ^1.1.0
+  
+  # SQLite & Local Database
+  sqflite: ^2.3.0
+  sqflite_common_ffi: ^2.3.0  # للدعم على Windows/Desktop
+  path: ^1.8.3
+  path_provider: ^2.1.1
+  
+  # Backup & Sync Services
+  google_sign_in: ^6.1.5
+  googleapis: ^11.4.0
+  
+  # Security & Authentication
+  crypto: ^3.0.3
+  uuid: ^4.1.0
 
 dev_dependencies:
   flutter_test:
